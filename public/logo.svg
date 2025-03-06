@@ -1,0 +1,10 @@
+<svg width="150" height="60" viewBox="0 0 150 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="75" cy="30" r="20" fill="#2E7EEA" />
+  <path d="M75 15C66.716 15 60 21.716 60 30C60 38.284 66.716 45 75 45C83.284 45 90 38.284 90 30C90 21.716 83.284 15 75 15ZM75 42C68.373 42 63 36.627 63 30C63 23.373 68.373 18 75 18C81.627 18 87 23.373 87 30C87 36.627 81.627 42 75 42Z" fill="white" />
+  <path d="M75 22C73.343 22 72 23.343 72 25C72 26.657 73.343 28 75 28C76.657 28 78 26.657 78 25C78 23.343 76.657 22 75 22Z" fill="white" />
+  <path d="M75 30C73.343 30 72 31.343 72 33V38C72 39.657 73.343 41 75 41C76.657 41 78 39.657 78 38V33C78 31.343 76.657 30 75 30Z" fill="white" />
+  <path d="M100 30H110M120 30H130M140 30H150" stroke="#2E7EEA" stroke-width="2" />
+  <text x="95" y="35" font-family="Arial" font-size="14" font-weight="bold" fill="#2E7EEA">LIMPIAR</text>
+  <text x="95" y="45" font-family="Arial" font-size="8" fill="#2E7EEA">Cleaning. Simplified.</text>
+</svg>
+
