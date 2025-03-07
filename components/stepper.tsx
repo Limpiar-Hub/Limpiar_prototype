@@ -6,7 +6,7 @@ interface StepperProps {
 }
 
 export function Stepper({ currentStep }: StepperProps) {
-  const { otpVerified } = useAppSelector((state) => state.auth)
+  const { otpVerified } = useAppSelector((state) => state.onboarding);
 
   return (
     <div className="space-y-4">

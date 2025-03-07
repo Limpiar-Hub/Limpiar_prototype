@@ -12,29 +12,22 @@ import { Label } from "@/components/ui/label";
 import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/style.css";
 import React from "react";
-import axios from "axios";
-import { registerUser } from "@/app/actions/auth";
 import { useRouter } from "next/navigation";
 
-const personalInfoSchema = z
-  .object({
-    fullName: z.string().min(3, "Full name must be at least 3 characters"),
-    email: z.string().email("Please enter a valid email address"),
-    phoneNumber: z.string().min(10, "Please enter a valid phone number"),
-    password: z
-      .string()
-      .min(8, "Password must be at least 8 characters")
-      .regex(
-        /[!@#$%^&*(),.?":{}|<>]/,
-        "Password must contain at least 1 special character"
-      )
-      .regex(/\d/, "Password must contain at least 1 number"),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
+const personalInfoSchema = z.object({
+  fullName: z.string().min(3, "Full name must be at least 3 characters"),
+  email: z.string().email("Please enter a valid email address"),
+  phoneNumber: z.string(), // Removed validation
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[!@#$%^&*(),.?":{}|<>]/, "Password must contain at least 1 special character")
+    .regex(/\d/, "Password must contain at least 1 number"),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+});
 
 type PersonalInfoFormData = z.infer<typeof personalInfoSchema>;
 
@@ -42,7 +35,6 @@ export default function PersonalInfoForm() {
   const dispatch = useDispatch();
   const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [phoneError, setPhoneError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [serverError, setServerError] = useState("");
 
@@ -55,13 +47,13 @@ export default function PersonalInfoForm() {
     register,
     handleSubmit,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<PersonalInfoFormData>({
     resolver: zodResolver(personalInfoSchema),
     defaultValues: {
       fullName: "",
       email: "",
-      phoneNumber: "+2348101200547",
+      phoneNumber: "",
       password: "",
       confirmPassword: "",
     },
@@ -77,79 +69,65 @@ export default function PersonalInfoForm() {
       setPasswordNumber(/\d/.test(passwordValue));
     }
   }, [passwordValue]);
+  const API_URL = "http://localhost:35690/api/auth";
 
+  const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...options.headers,
+        },
+      });
+  
+      if (!response.ok) {
+        const errorText = await response.text(); // Get raw response for debugging
+        console.error("API Error:", response.status, errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+  
+      return await response.json();
+    } catch (error) {
+      console.error("Fetch Error:", error);
+      throw error;
+    }
+  };
+  
 
   const onSubmit = async (data: PersonalInfoFormData) => {
     try {
       setIsLoading(true);
       setServerError("");
-
-      console.log("Form data:", data);
-
-      // Always set the role to property_manager as per requirements
+  
+      // Prepare form data
       const formData = {
         fullName: data.fullName,
         email: data.email,
-        phoneNumber: "+2348101200547",
+        phoneNumber, 
         password: data.password,
         confirmPassword: data.confirmPassword,
-        role: "property_manager", // Hardcoded as per requirements
+        role: "property_manager",
       };
-
-      console.log("Submitting to backend:", formData);
-
-      // Make API call to the backend
-      const response = await fetch(
-        "https://limpiar-backend.onrender.com/api/auth/register",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify(formData),
-        }
-      );
-
-      // Parse the JSON response
-      const responseData = await response.json();
-
-      console.log("API response:", responseData);
-
-      // Check if the response was successful
-      if (!response.ok) {
-        throw new Error(responseData.message || "Registration failed");
-      }
-
-      localStorage.setItem("phoneNumber", formData.phoneNumber);
-
-      // Save to Redux store
-      dispatch(
-        setPersonalInfo({
-          fullName: data.fullName,
-          email: data.email,
-          phoneNumber: phoneNumber,
-          password: data.password,
-          role: "property_manager",
-        })
-      );
-
-      // Navigate to OTP verification page
+  
+      console.log("📤 Submitting Registration:", formData);
+  
+      
+      await fetchWithAuth("/register", {
+        method: "POST",
+        body: JSON.stringify(formData),
+      });
+  
+    
       router.push("/verify-otp");
     } catch (error) {
-      console.error("Registration error:", error);
-      if (error instanceof Error) {
-        setServerError(
-          error.message || "An unexpected error occurred. Please try again."
-        );
-      } else {
-        setServerError("An unexpected error occurred. Please try again.");
-      }
+      console.error("❌ Registration Error:", error);
+      setServerError(error instanceof Error ? error.message : "An unexpected error occurred.");
     } finally {
       setIsLoading(false);
     }
   };
-
   return (
     <div className="max-w-md mx-auto w-full xl:ml-20">
       <h1 className="text-2xl font-bold mb-6">Personal Information</h1>
@@ -208,22 +186,11 @@ export default function PersonalInfoForm() {
             country={"us"}
             value={phoneNumber}
             onChange={(phone) => {
-              setPhoneNumber("+" + phone);
-              setPhoneError("");
-
-              // Set the value for the form validation
-              register("phoneNumber").onChange({
-                target: { value: "+" + phone },
-              });
+              setPhoneNumber(phone);
             }}
             inputClass="w-full !h-10 !pl-12 !border-gray-300 rounded-md"
             containerClass="w-full"
           />
-          {(phoneError || errors.phoneNumber) && (
-            <p className="text-red-500 text-sm mt-1">
-              {phoneError || errors.phoneNumber?.message}
-            </p>
-          )}
         </div>
 
         {/* Password */}
@@ -242,9 +209,7 @@ export default function PersonalInfoForm() {
             ) : (
               <X size={16} className="text-red-500" />
             )}
-            <span
-              className={passwordLength ? "text-green-600" : "text-gray-600"}
-            >
+            <span className={passwordLength ? "text-green-600" : "text-gray-600"}>
               Min 8 characters
             </span>
           </div>
@@ -254,9 +219,7 @@ export default function PersonalInfoForm() {
             ) : (
               <X size={16} className="text-red-500" />
             )}
-            <span
-              className={passwordSpecial ? "text-green-600" : "text-gray-600"}
-            >
+            <span className={passwordSpecial ? "text-green-600" : "text-gray-600"}>
               1 special character
             </span>
           </div>
@@ -266,9 +229,7 @@ export default function PersonalInfoForm() {
             ) : (
               <X size={16} className="text-red-500" />
             )}
-            <span
-              className={passwordNumber ? "text-green-600" : "text-gray-600"}
-            >
+            <span className={passwordNumber ? "text-green-600" : "text-gray-600"}>
               1 number
             </span>
           </div>
@@ -294,4 +255,3 @@ export default function PersonalInfoForm() {
     </div>
   );
 }
-

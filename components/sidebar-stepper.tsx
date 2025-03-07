@@ -13,13 +13,13 @@ export function Sidebar({ currentStep }: SidebarProps) {
           Let's setup Your Operating Dashboard
         </h2>
         <p className="text-sm opacity-90">
-          All-in-one solution to for your business in the state. Form a new
+          All-in-one solution for your business in the state. Form a new
           company from scratch or onboard your existing US company.
         </p>
       </div>
 
       <div className="mt-8">
-        <Steps />
+        <Steps currentStep={currentStep} />
       </div>
 
       <div className="text-sm mt-12">

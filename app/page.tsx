@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
+//import Image from "next/image";
+//import { Input } from "@/components/ui/input";
+//import { Button } from "@/components/ui/button";
+//import Link from "next/link";
 import LogoContainer from "@/components/sections/brands";
 import ServicesSection from "@/components/sections/services-section";
 import Footer from "@/components/sections/footer";

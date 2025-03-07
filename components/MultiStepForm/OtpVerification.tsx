@@ -1,90 +1,100 @@
-"use client"
+"use client";
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
-import { useDispatch, useSelector } from "react-redux"
-import { verifyOtp } from "@/redux/features/onboarding/onboardingSlice"
-import type { RootState } from "@/redux/store"
-import  Logo  from "@/public/logo.svg"
-import Image from 'next/image'
+import type React from "react";
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useRouter } from "next/navigation";
+import { verifyOtp } from "@/redux/features/onboarding/onboardingSlice";
+import type { RootState } from "@/redux/store";
+import Image from "next/image";
 
 export default function OtpVerification() {
-  const dispatch = useDispatch()
-  const { personalInfo } = useSelector((state: RootState) => state.onboarding)
-  const [otp, setOtp] = useState("")
-  const [error, setError] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [countdown, setCountdown] = useState(30)
+  const dispatch = useDispatch();
+  const router = useRouter();
+  const { personalInfo } = useSelector((state: RootState) => state.onboarding);
+  const [otp, setOtp] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [countdown, setCountdown] = useState(30);
+  const [phoneNumber, setPhoneNumber] = useState("");
+
+  // Ensure phone number is available
+  useEffect(() => {
+    const storedPhone = personalInfo?.phoneNumber || localStorage.getItem("phoneNumber");
+
+    if (!storedPhone) {
+      router.replace("/register");
+    } else {
+      setPhoneNumber(storedPhone);
+    }
+  }, [personalInfo, router]);
 
   // Mask phone number
-  const maskedPhone = personalInfo.phoneNumber.replace(/^(\+\d{1,2})(\d{3})(\d{3})(\d{4})$/, "$1-••-•••-$4")
+  const maskedPhone = phoneNumber
+    ? phoneNumber.replace(/^(\+\d{1,2})(\d{3})(\d{3})(\d{4})$/, "$1-••-•••-$4")
+    : "";
 
+  // Countdown for resend
   useEffect(() => {
-    // Start countdown for resend
     if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
-      return () => clearTimeout(timer)
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
     }
-  }, [countdown])
+  }, [countdown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-    setError("")
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError("");
 
     try {
-      // Simulate OTP verification
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Call your API endpoint to verify the OTP
+      const response = await fetch("/api/verify-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ otp, phoneNumber }), // Include phoneNumber if needed
+      });
 
-      // For demo purposes, let's say "1234" is the correct OTP
-      if (otp === "1234") {
-        dispatch(verifyOtp(true))
+      const data = await response.json();
+
+      if (response.ok) {
+        dispatch(verifyOtp(true));
+        // Redirect or perform other actions after successful verification
       } else {
-        setError("Wrong OTP")
+        setError(data.message || "Failed to verify OTP.");
       }
     } catch (error) {
-      setError("Failed to verify OTP. Please try again.")
+      setError("Failed to verify OTP. Please try again.");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const handleResendCode = async () => {
-    setCountdown(30)
-    // Simulate resending OTP
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    // Show success message or notification
-  }
+    setCountdown(30);
+    // Call your API endpoint to resend the OTP
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulating delay for resend
+  };
+
+  if (!phoneNumber) return null; // Prevents rendering until phone number is available
 
   return (
-    <div className=" flex flex-col items-center justify-center p-4">
+    <div className="flex flex-col items-center justify-center p-4">
       <div className="mb-8">
-        <Image src='/authLogo.png' alt="logo" width={250} height={130}  />
-        {/* <Image src='/authLogo.png' alt="logo" /> */}
+        <Image src="/authLogo.png" alt="logo" width={250} height={130} />
       </div>
 
       <div className="w-full max-w-md mt-20">
         <h1 className="text-2xl font-bold text-center mb-2">Enter OTP Code</h1>
         <p className="text-center text-gray-600 mb-8">
-          Enter the one-time code sent to {maskedPhone} to confirm your account and start with Limpiar
+          Enter the one-time code sent to {maskedPhone} to confirm your account.
         </p>
 
         <div className="flex items-center justify-center gap-4 mb-6">
           <div className="p-2 bg-gray-100 rounded-md">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-            </svg>
+            {/* SVG Icon */}
           </div>
           <span className="text-2xl">→</span>
           <form onSubmit={handleSubmit} className="flex-1">
@@ -121,6 +131,5 @@ export default function OtpVerification() {
         </div>
       </div>
     </div>
-  )
+  );
 }
-
