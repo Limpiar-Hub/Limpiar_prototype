@@ -47,17 +47,19 @@ export default function PersonalInfoForm() {
     register,
     handleSubmit,
     watch,
+    setValue,  
     formState: { errors },
   } = useForm<PersonalInfoFormData>({
     resolver: zodResolver(personalInfoSchema),
     defaultValues: {
       fullName: "",
       email: "",
-      phoneNumber: "",
+      phoneNumber: "",  
       password: "",
       confirmPassword: "",
     },
   });
+  
 
   // Watch the password field to update validation states
   const passwordValue = watch("password");
@@ -69,65 +71,94 @@ export default function PersonalInfoForm() {
       setPasswordNumber(/\d/.test(passwordValue));
     }
   }, [passwordValue]);
-  const API_URL = "http://localhost:35690/api/auth";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://limpiar-backend.onrender.com/api/auth";
 
-  const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
-    try {
-      const response = await fetch(`${API_URL}${endpoint}`, {
-        ...options,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          ...options.headers,
-        },
-      });
-  
-      if (!response.ok) {
-        const errorText = await response.text(); // Get raw response for debugging
-        console.error("API Error:", response.status, errorText);
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-  
-      return await response.json();
-    } catch (error) {
-      console.error("Fetch Error:", error);
-      throw error;
+const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
+  try {
+    const url = `${API_URL.replace(/\/$/, "")}${endpoint}`; // Ensure no double slashes
+
+    console.log("🚀 API Request:", url, options);
+
+    const response = await fetch(url, {
+      ...options,
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+
+    // 🔍 Log raw response for debugging
+    const responseText = await response.text();
+    console.log("⬇️ Raw API Response:", response.status, responseText);
+
+    if (!response.ok) {
+      console.error("❌ API Error:", response.status, responseText);
+      throw new Error(`HTTP ${response.status}: ${responseText}`);
     }
-  };
+
+    return JSON.parse(responseText); // Safely parse JSON
+  } catch (error) {
+    console.error("⚠️ Fetch Error:", error);
+    throw error;
+  }
+};
+
   
 
-  const onSubmit = async (data: PersonalInfoFormData) => {
-    try {
-      setIsLoading(true);
-      setServerError("");
-  
-      // Prepare form data
-      const formData = {
-        fullName: data.fullName,
-        email: data.email,
-        phoneNumber, 
-        password: data.password,
-        confirmPassword: data.confirmPassword,
-        role: "property_manager",
-      };
-  
-      console.log("📤 Submitting Registration:", formData);
-  
-      
-      await fetchWithAuth("/register", {
-        method: "POST",
-        body: JSON.stringify(formData),
-      });
-  
-    
-      router.push("/verify-otp");
-    } catch (error) {
-      console.error("❌ Registration Error:", error);
-      setServerError(error instanceof Error ? error.message : "An unexpected error occurred.");
-    } finally {
-      setIsLoading(false);
+const onSubmit = async (data: PersonalInfoFormData) => {
+  try {
+    setIsLoading(true);
+    setServerError("");
+
+    const { fullName, email, phoneNumber, password, confirmPassword } = data;
+
+    if (!phoneNumber || phoneNumber.trim() === "") {
+      throw new Error("Phone number is required.");
     }
-  };
+
+    const formData = {
+      fullName,
+      email,
+      phoneNumber: phoneNumber.trim(),
+      password,
+      confirmPassword,
+      role: "property_manager",
+    };
+
+    console.log("📤 Submitting Registration:", formData);
+
+    const response = await fetchWithAuth("/register", {
+      method: "POST",
+      body: JSON.stringify(formData),
+    });
+
+    console.log("⬇️ Raw API Response:", response);
+
+    // ✅ Correct response handling
+    if (response.message && response.message.includes("Verification code sent")) {
+      // Store session data for OTP verification
+      localStorage.setItem("phoneNumber", phoneNumber.trim());
+      localStorage.setItem("sessionData", JSON.stringify(formData)); // ✅ Store session for later use
+
+      // Redirect to OTP verification
+      router.push(`/verify-otp`);
+      return; // ✅ Stop further execution
+    }
+
+    throw new Error(`Unexpected response from server: ${JSON.stringify(response)}`);
+  } catch (error) {
+    console.error("❌ Registration Error:", error);
+    setServerError(error instanceof Error ? error.message : "An unexpected error occurred.");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+  
+  
+  
+  
   return (
     <div className="max-w-md mx-auto w-full xl:ml-20">
       <h1 className="text-2xl font-bold mb-6">Personal Information</h1>
@@ -183,14 +214,16 @@ export default function PersonalInfoForm() {
         <div>
           <Label htmlFor="phoneNumber">Phone Number</Label>
           <PhoneInput
-            country={"us"}
-            value={phoneNumber}
-            onChange={(phone) => {
-              setPhoneNumber(phone);
-            }}
-            inputClass="w-full !h-10 !pl-12 !border-gray-300 rounded-md"
-            containerClass="w-full"
-          />
+  country={"us"}
+  value={phoneNumber}
+  onChange={(phone) => {
+    setPhoneNumber(phone); 
+    setValue("phoneNumber", phone, { shouldValidate: true }); // ✅ Updates form state
+  }}
+  inputClass="w-full !h-10 !pl-12 !border-gray-300 rounded-md"
+  containerClass="w-full"
+/>
+
         </div>
 
         {/* Password */}

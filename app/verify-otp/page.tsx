@@ -5,11 +5,14 @@ import { useDispatch, useSelector } from "react-redux";
 import { verifyOtp } from "@/redux/features/onboarding/onboardingSlice";
 import type { RootState } from "@/redux/store";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+
+const API_URL = "https://limpiar-backend.onrender.com/api/auth";
 
 export default function OtpVerification() {
   const dispatch = useDispatch();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { personalInfo } = useSelector((state: RootState) => state.onboarding);
 
   const [otp, setOtp] = useState("");
@@ -19,17 +22,16 @@ export default function OtpVerification() {
   const [phoneNumber, setPhoneNumber] = useState("");
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedPhone = localStorage.getItem("phoneNumber") || personalInfo?.phoneNumber || "";
-      setPhoneNumber(storedPhone);
+    const queryPhone = searchParams.get("phoneNumber");
+    const storedPhone = localStorage.getItem("phoneNumber") || queryPhone || personalInfo?.phoneNumber || "";
 
-      if (!storedPhone) {
-        alert("Session expired. Please register again.");
-        router.replace("/register");
-        return;
-      }
+    if (storedPhone) {
+      setPhoneNumber(storedPhone);
+    } else {
+      alert("Session expired. Please register again.");
+      router.replace("/register");
     }
-  }, [personalInfo, router]);
+  }, [searchParams.toString(), personalInfo, router]); // ✅ FIXED
 
   const maskedPhone = phoneNumber
     ? phoneNumber.replace(/^(\+\d{1,2})(\d{3})(\d{3})(\d{4})$/, "$1-••-•••-$4")
@@ -42,62 +44,103 @@ export default function OtpVerification() {
     }
   }, [countdown]);
 
-  const API_URL = "http://localhost:35690/api/auth";
-
   const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
     try {
-      const response = await fetch(`${API_URL}${endpoint}`, {
+      const url = `${API_URL.replace(/\/$/, "")}${endpoint}`;
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        console.warn("⚠️ No token found. Redirecting to login...");
+        throw new Error("Session expired. Please log in again.");
+      }
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        ...((options.headers as Record<string, string>) || {}), // Ensure headers is a Record<string, string>
+      };
+      
+
+      console.log("🚀 API Request:", url, { headers, ...options });
+
+      const response = await fetch(url, {
         ...options,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          ...options.headers,
-        },
+        headers,
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Request failed");
+      const responseText = await response.text();
+      console.log("⬇️ Raw API Response:", response.status, responseText);
 
-      return data;
+      if (!response.ok) {
+        console.error("❌ API Error:", response.status, responseText);
+        throw new Error(`HTTP ${response.status}: ${responseText}`);
+      }
+
+      return JSON.parse(responseText);
     } catch (error) {
-      console.error("❌ API Fetch Error:", error);
+      console.error("⚠️ Fetch Error:", error);
       throw error;
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+  
     setIsSubmitting(true);
     setError("");
-
+  
     try {
-      if (!otp || otp.length !== 6) throw new Error("Please enter a valid 6-digit code.");
-      if (!phoneNumber) throw new Error("Phone number is missing. Please register again.");
-
-      const data = await fetchWithAuth("/verify-register", {
+      if (!otp || otp.length !== 6) throw new Error("Enter a valid 6-digit code.");
+  
+      // Retrieve phoneNumber from localStorage if not in state
+      const storedPhone = phoneNumber || localStorage.getItem("phoneNumber");
+      if (!storedPhone) throw new Error("Session expired. Please register again.");
+  
+      console.log("📞 Stored Phone:", storedPhone);
+      console.log("📩 OTP Code:", otp);
+  
+      const response = await fetch("https://limpiar-backend.onrender.com/api/auth/verify-register", {
         method: "POST",
-        body: JSON.stringify({ phoneNumber, code: otp }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phoneNumber: storedPhone.trim(), // Ensure phone is sent properly
+          code: otp.trim(), // Trim spaces from OTP
+        }),
       });
-
-      // Store token and user ID for authentication
-      if (data.token) localStorage.setItem("token", data.token);
+  
+      const data = await response.json();
+      console.log("⬇️ API Response:", response.status, data);
+  
+      if (!response.ok) throw new Error(data.message || "Verification failed.");
+      if (!data.token) throw new Error("Token missing in response. Please try again.");
+  
+      // Store authentication token
+      localStorage.setItem("token", data.token);
       if (data.user?.userId) localStorage.setItem("userId", data.user.userId);
-
+  
       dispatch(verifyOtp(true));
       router.push("/dashboard");
     } catch (error) {
+      console.error("❌ Verification Error:", error);
       setError(error instanceof Error ? error.message : "Failed to verify code.");
     } finally {
       setIsSubmitting(false);
     }
   };
+  
+  
+  
+  
+  
+  
 
   const handleResendCode = async () => {
     setCountdown(30);
     try {
       await fetchWithAuth("/resend-otp", {
         method: "POST",
-        body: JSON.stringify({ phoneNumber }),
+        body: JSON.stringify({ phoneNumber: phoneNumber || localStorage.getItem("phoneNumber") }), // ✅ FIXED
       });
       alert("OTP resent successfully.");
     } catch (error) {
