@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { verifyOtp } from "@/redux/features/onboarding/onboardingSlice";
 import type { RootState } from "@/redux/store";
@@ -10,6 +10,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 const API_URL = "https://limpiar-backend.onrender.com/api/auth";
 
 export default function OtpVerification() {
+  return (
+    <Suspense fallback={<p>Loading...</p>}>
+      <OtpVerificationComponent />
+    </Suspense>
+  );
+}
+
+function OtpVerificationComponent() {
   const dispatch = useDispatch();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -31,7 +39,7 @@ export default function OtpVerification() {
       alert("Session expired. Please register again.");
       router.replace("/register");
     }
-  }, [searchParams.toString(), personalInfo, router]); // ✅ FIXED
+  }, [searchParams, personalInfo, router]);
 
   const maskedPhone = phoneNumber
     ? phoneNumber.replace(/^(\+\d{1,2})(\d{3})(\d{3})(\d{4})$/, "$1-••-•••-$4")
@@ -57,9 +65,8 @@ export default function OtpVerification() {
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
-        ...((options.headers as Record<string, string>) || {}), // Ensure headers is a Record<string, string>
+        ...((options.headers as Record<string, string>) || {}),
       };
-      
 
       console.log("🚀 API Request:", url, { headers, ...options });
 
@@ -86,39 +93,37 @@ export default function OtpVerification() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
-  
+
     setIsSubmitting(true);
     setError("");
-  
+
     try {
       if (!otp || otp.length !== 6) throw new Error("Enter a valid 6-digit code.");
-  
-      // Retrieve phoneNumber from localStorage if not in state
+
       const storedPhone = phoneNumber || localStorage.getItem("phoneNumber");
       if (!storedPhone) throw new Error("Session expired. Please register again.");
-  
+
       console.log("📞 Stored Phone:", storedPhone);
       console.log("📩 OTP Code:", otp);
-  
-      const response = await fetch("https://limpiar-backend.onrender.com/api/auth/verify-register", {
+
+      const response = await fetch(`${API_URL}/verify-register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phoneNumber: storedPhone.trim(), // Ensure phone is sent properly
-          code: otp.trim(), // Trim spaces from OTP
+          phoneNumber: storedPhone.trim(),
+          code: otp.trim(),
         }),
       });
-  
+
       const data = await response.json();
       console.log("⬇️ API Response:", response.status, data);
-  
+
       if (!response.ok) throw new Error(data.message || "Verification failed.");
       if (!data.token) throw new Error("Token missing in response. Please try again.");
-  
-      // Store authentication token
+
       localStorage.setItem("token", data.token);
       if (data.user?.userId) localStorage.setItem("userId", data.user.userId);
-  
+
       dispatch(verifyOtp(true));
       router.push("/dashboard");
     } catch (error) {
@@ -128,19 +133,13 @@ export default function OtpVerification() {
       setIsSubmitting(false);
     }
   };
-  
-  
-  
-  
-  
-  
 
   const handleResendCode = async () => {
     setCountdown(30);
     try {
       await fetchWithAuth("/resend-otp", {
         method: "POST",
-        body: JSON.stringify({ phoneNumber: phoneNumber || localStorage.getItem("phoneNumber") }), // ✅ FIXED
+        body: JSON.stringify({ phoneNumber: phoneNumber || localStorage.getItem("phoneNumber") }),
       });
       alert("OTP resent successfully.");
     } catch (error) {
@@ -164,7 +163,10 @@ export default function OtpVerification() {
           <input
             type="text"
             value={otp}
-            onChange={(e) => setOtp(e.target.value)}
+            onChange={(e) => {
+              const onlyNums = e.target.value.replace(/\D/g, "");
+              setOtp(onlyNums);
+            }}
             placeholder="Enter OTP"
             className={`w-full p-3 border ${
               error ? "border-red-500" : "border-gray-200"
