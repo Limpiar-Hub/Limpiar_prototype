@@ -108,6 +108,7 @@ function OtpVerificationComponent() {
 
       const response = await fetch(`${API_URL}/verify-register`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           phoneNumber: storedPhone.trim(),
