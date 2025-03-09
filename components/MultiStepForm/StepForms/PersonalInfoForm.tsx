@@ -13,6 +13,8 @@ import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/style.css";
 import React from "react";
 import { useRouter } from "next/navigation";
+import api from "@/lib/api";
+import axios from "axios";
 
 const personalInfoSchema = z.object({
   fullName: z.string().min(3, "Full name must be at least 3 characters"),
@@ -71,39 +73,12 @@ export default function PersonalInfoForm() {
       setPasswordNumber(/\d/.test(passwordValue));
     }
   }, [passwordValue]);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://limpiar-backend.onrender.com/api/auth";
 
-const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
-  try {
-    const url = `${API_URL.replace(/\/$/, "")}${endpoint}`; // Ensure no double slashes
 
-    console.log("🚀 API Request:", url, options);
 
-    const response = await fetch(url, {
-      ...options,
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
 
     // 🔍 Log raw response for debugging
-    const responseText = await response.text();
-    console.log("⬇️ Raw API Response:", response.status, responseText);
-
-    if (!response.ok) {
-      console.error("❌ API Error:", response.status, responseText);
-      throw new Error(`HTTP ${response.status}: ${responseText}`);
-    }
-
-    return JSON.parse(responseText); // Safely parse JSON
-  } catch (error) {
-    console.error("⚠️ Fetch Error:", error);
-    throw error;
-  }
-};
-
+ 
   
 
 const onSubmit = async (data: PersonalInfoFormData) => {
@@ -113,7 +88,7 @@ const onSubmit = async (data: PersonalInfoFormData) => {
 
     const { fullName, email, phoneNumber, password, confirmPassword } = data;
 
-    if (!phoneNumber || phoneNumber.trim() === "") {
+    if (!phoneNumber?.trim()) {
       throw new Error("Phone number is required.");
     }
 
@@ -128,28 +103,25 @@ const onSubmit = async (data: PersonalInfoFormData) => {
 
     console.log("📤 Submitting Registration:", formData);
 
-    const response = await fetchWithAuth("/register", {
-      method: "POST",
-      body: JSON.stringify(formData),
-    });
+    // ✅ Use the Axios instance for cleaner API calls
+    const { data: response } = await api.post("/register", formData);
 
-    console.log("⬇️ Raw API Response:", response);
+    console.log("⬇️ API Response:", response);
 
-    // ✅ Correct response handling
-    if (response.message && response.message.includes("Verification code sent")) {
+    if (response.message?.includes("Verification code sent")) {
       // Store session data for OTP verification
       localStorage.setItem("phoneNumber", phoneNumber.trim());
-      localStorage.setItem("sessionData", JSON.stringify(formData)); // ✅ Store session for later use
+      localStorage.setItem("sessionData", JSON.stringify(formData));
 
-      // Redirect to OTP verification
-      router.push(`/verify-otp`);
-      return; // ✅ Stop further execution
+      // ✅ Redirect to OTP verification
+      router.push("/verify-otp");
+      return;
     }
 
-    throw new Error(`Unexpected response from server: ${JSON.stringify(response)}`);
+    throw new Error(`Unexpected response: ${JSON.stringify(response)}`);
   } catch (error) {
     console.error("❌ Registration Error:", error);
-    setServerError(error instanceof Error ? error.message : "An unexpected error occurred.");
+    setServerError(axios.isAxiosError(error) ? error.response?.data?.message : "An unexpected error occurred.");
   } finally {
     setIsLoading(false);
   }

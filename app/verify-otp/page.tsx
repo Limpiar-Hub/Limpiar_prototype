@@ -6,6 +6,8 @@ import { verifyOtp } from "@/redux/features/onboarding/onboardingSlice";
 import type { RootState } from "@/redux/store";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
+import axios from "axios";
+import api from "@/lib/api";
 
 const API_URL = "https://limpiar-backend.onrender.com/api/auth";
 
@@ -93,48 +95,49 @@ function OtpVerificationComponent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
-
+  
     setIsSubmitting(true);
     setError("");
-
+  
     try {
       if (!otp || otp.length !== 6) throw new Error("Enter a valid 6-digit code.");
-
+  
       const storedPhone = phoneNumber || localStorage.getItem("phoneNumber");
       if (!storedPhone) throw new Error("Session expired. Please register again.");
-
+  
       console.log("📞 Stored Phone:", storedPhone);
       console.log("📩 OTP Code:", otp);
-
-      const response = await fetch(`${API_URL}/verify-register`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phoneNumber: storedPhone.trim(),
-          code: otp.trim(),
-        }),
+  
+      // ✅ Axios request for cleaner handling
+      const { data } = await api.post("/verify-register", {
+        phoneNumber: storedPhone.trim(),
+        code: otp.trim(),
       });
-
-      const data = await response.json();
-      console.log("⬇️ API Response:", response.status, data);
-
-      if (!response.ok) throw new Error(data.message || "Verification failed.");
+  
+      console.log("⬇️ API Response:", data);
+  
       if (!data.token) throw new Error("Token missing in response. Please try again.");
-
+  
+      // ✅ Store JWT in localStorage
       localStorage.setItem("token", data.token);
       if (data.user?.userId) localStorage.setItem("userId", data.user.userId);
-
+  
       dispatch(verifyOtp(true));
       router.push("/dashboard");
-    } catch (error) {
+    } catch (error: unknown) { // Explicitly handle unknown errors
       console.error("❌ Verification Error:", error);
-      setError(error instanceof Error ? error.message : "Failed to verify code.");
+  
+      if (axios.isAxiosError(error)) {
+        setError(error.response?.data?.message || "Verification failed.");
+      } else if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError("An unexpected error occurred.");
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
-
   const handleResendCode = async () => {
     setCountdown(30);
     try {
